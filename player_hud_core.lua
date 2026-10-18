@@ -17,7 +17,7 @@ for _, upgrade in pairs(pocket.upgrades()) do
 end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
-local detailIndex = #HUD_SIZES
+local detailIndex = 2
 if type(hud.setSize) == "function" then
   local width, height = hud.getSize()
   local size = HUD_SIZES[detailIndex]
@@ -39,6 +39,7 @@ end
 local selected, running = 1, true
 local players, wearer = {}, nil
 local enabled = {}
+local testTarget
 local previousComputerSignature
 local fovActive = false
 
@@ -91,6 +92,17 @@ local function scan()
       present[playerName] = true
       if enabled[playerName] == nil then enabled[playerName] = true end
     end
+  end
+  if testTarget then
+    local dx, dy, dz = testTarget.x - me.x, testTarget.y - (me.y + (me.eyeHeight or 1.62)), testTarget.z - me.z
+    found[#found + 1] = {
+      name = "TEST TARGET", dimension = testTarget.dimension,
+      x = testTarget.x, y = testTarget.y, z = testTarget.z, eyeHeight = 0,
+      positionAvailable = ownerCanProject,
+      sameDimension = not (testTarget.dimension and me.dimension and testTarget.dimension ~= me.dimension),
+      distance = math.sqrt(dx * dx + dy * dy + dz * dz),
+    }
+    present["TEST TARGET"] = true
   end
   table.sort(found, function(a, b)
     if a.distance and b.distance then return a.distance < b.distance end
@@ -282,7 +294,7 @@ local function drawComputer(message)
   local width = term.getSize()
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
-  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(fovActive), message or "" }
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(fovActive), tostring(testTarget ~= nil), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
     signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
@@ -319,7 +331,7 @@ local function drawComputer(message)
   line(#players + 2, "[ Quit ]", colors.red)
   local hudWidth, hudHeight = hud.getSize()
   local fovStatus = fovActive and "FOV AUTO" or (fovBridge and "FOV WAIT" or "FOV 110")
-  line(#players + 3, "Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R " .. fovStatus, colors.gray)
+  line(#players + 3, "T Test target  Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R " .. fovStatus, colors.gray)
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
@@ -367,6 +379,22 @@ local function controlLoop()
       elseif key == keys.down then selected = math.min(#players + 2, selected + 1)
       elseif key == keys.left then changeDetail(-1)
       elseif key == keys.right then changeDetail(1)
+      elseif key == keys.t then
+        if testTarget then
+          testTarget = nil
+          enabled["TEST TARGET"] = nil
+        elseif wearer and wearer.x and wearer.y and wearer.z and wearer.yaw and wearer.pitch then
+          local yaw, pitch = math.rad(wearer.yaw), math.rad(wearer.pitch)
+          local distance = 10
+          local forwardX, forwardY, forwardZ = -math.sin(yaw) * math.cos(pitch), -math.sin(pitch), math.cos(yaw) * math.cos(pitch)
+          testTarget = {
+            x = wearer.x + forwardX * distance,
+            y = wearer.y + (wearer.eyeHeight or 1.62) + forwardY * distance,
+            z = wearer.z + forwardZ * distance,
+            dimension = wearer.dimension,
+          }
+          enabled["TEST TARGET"] = true
+        end
       elseif key == keys.enter then activateSelected() end
     elseif event == "mouse_click" and key == 1 and y and y <= #players + 2 then
       selected = math.max(1, y)
