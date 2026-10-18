@@ -384,13 +384,11 @@ local function controlLoop()
           testTarget = nil
           enabled["TEST TARGET"] = nil
         elseif wearer and wearer.x and wearer.y and wearer.z and wearer.yaw and wearer.pitch then
-          local yaw, pitch = math.rad(wearer.yaw), math.rad(wearer.pitch)
-          local distance = 10
-          local forwardX, forwardY, forwardZ = -math.sin(yaw) * math.cos(pitch), -math.sin(pitch), math.cos(yaw) * math.cos(pitch)
+          local blockX, blockY, blockZ = math.floor(wearer.x), math.floor(wearer.y) - 1, math.floor(wearer.z)
           testTarget = {
-            x = wearer.x + forwardX * distance,
-            y = wearer.y + (wearer.eyeHeight or 1.62) + forwardY * distance,
-            z = wearer.z + forwardZ * distance,
+            x = blockX + 0.5,
+            y = blockY + 0.5,
+            z = blockZ + 0.5,
             dimension = wearer.dimension,
           }
           enabled["TEST TARGET"] = true
