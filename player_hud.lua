@@ -1,6 +1,7 @@
 -- Downloads and runs the latest player HUD on every launch.
 local api = "https://api.github.com/repos/eranfeldman/cc-player-hud/commits/main?update=" .. tostring(os.epoch("utc"))
 local core = "player_hud_core.lua"
+local fallback = "https://raw.githubusercontent.com/eranfeldman/cc-player-hud/80d37edd8ad779371276799ae9ab4f4f7af3b9e7/player_hud_core.lua"
 
 local url, response, err
 if http and http.get then
@@ -20,6 +21,11 @@ if http and http.get then
     end
   else
     err = ok and reason or result
+  end
+  if not url then url = fallback end
+  if not response then
+    local downloaded, file, downloadError = pcall(http.get, url)
+    if downloaded then response, err = file, downloadError else err = file end
   end
 else
   err = "HTTP API is unavailable"
