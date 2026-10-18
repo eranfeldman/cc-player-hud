@@ -22,29 +22,34 @@ local enabled = {}
 
 local function scan()
   local me = detector.getOwner()
-  if not me or not me.x or not me.y or not me.z or not me.yaw or not me.pitch then
-    return {}, 0, nil, "Waiting for player data..."
-  end
+  if not me then return {}, 0, nil, "Waiting for player data..." end
+  local ownerHasPosition = me.x ~= nil and me.y ~= nil and me.z ~= nil
+  local ownerCanProject = ownerHasPosition and me.yaw ~= nil and me.pitch ~= nil
 
   local found = {}
   local present = {}
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name)
-    local playerName = p and (p.name or name)
-    local isMe = p and ((me.uuid and p.uuid == me.uuid)
-      or (me.name and playerName:lower() == me.name:lower()))
-    if p and p.x and p.y and p.z and not isMe then
-      local sameDimension = p.dimension == me.dimension
-      local dx, dy, dz = p.x - me.x, p.y - me.y, p.z - me.z
+    local playerName = p and p.name or name
+    local isMe = (me.uuid and p and p.uuid == me.uuid)
+      or (me.name and playerName:lower() == me.name:lower())
+    if not isMe then
+      local hasPosition = p and p.x ~= nil and p.y ~= nil and p.z ~= nil and p.dimension ~= nil
+      local distance
+      if hasPosition and ownerHasPosition and p.dimension == me.dimension then
+        local dx, dy, dz = p.x - me.x, p.y - me.y, p.z - me.z
+        distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+      end
       found[#found + 1] = {
         name = playerName,
-        dimension = p.dimension,
-        x = p.x,
-        y = p.y,
-        z = p.z,
-        eyeHeight = p.eyeHeight or 1.62,
-        distance = sameDimension and math.sqrt(dx * dx + dy * dy + dz * dz) or nil,
+        dimension = p and p.dimension,
+        x = p and p.x,
+        y = p and p.y,
+        z = p and p.z,
+        eyeHeight = (p and p.eyeHeight) or 1.62,
+        positionAvailable = hasPosition and ownerCanProject,
+        distance = distance,
       }
       present[playerName] = true
       if enabled[playerName] == nil then enabled[playerName] = true end
@@ -60,7 +65,8 @@ local function scan()
   for playerName in pairs(enabled) do
     if not present[playerName] then enabled[playerName] = nil end
   end
-  return found, #online, me
+  if ownerCanProject then return found, #online, me end
+  return found, #online, nil, "Waiting for player position data..."
 end
 
 local function drawHud()
@@ -85,7 +91,7 @@ local function drawHud()
   local markers, occupied = {}, {}
 
   for i, p in ipairs(players) do
-    if enabled[p.name] and p.dimension == wearer.dimension and p.distance then
+    if enabled[p.name] and p.positionAvailable and p.dimension == wearer.dimension and p.distance then
       local dx = p.x - wearer.x
       local dy = p.y + p.eyeHeight * 0.55 - (wearer.y + (wearer.eyeHeight or 1.62))
       local dz = p.z - wearer.z
@@ -165,11 +171,15 @@ local function drawComputer(message)
 
   local allState = allEnabled and "ON" or (anyEnabled and "MIXED" or "OFF")
   line(1, "Toggle all: " .. allState, colors.cyan)
+  local missingPosition = false
   for i, p in ipairs(players) do
-    line(i + 1, (enabled[p.name] and "[x] " or "[ ] ") .. p.name,
+    if not p.positionAvailable then missingPosition = true end
+    line(i + 1, (enabled[p.name] and "[x] " or "[ ] ") .. p.name .. (p.positionAvailable and "" or " *"),
       enabled[p.name] and colors.lime or colors.gray)
   end
   line(#players + 2, "[ Quit ]", colors.red)
+  if not message and #players == 0 then message = "No other players returned by detector."
+  elseif not message and missingPosition then message = "* Detector returned no position for this player." end
   if message then
     term.setCursorPos(1, #players + 3)
     term.setTextColor(colors.red)
