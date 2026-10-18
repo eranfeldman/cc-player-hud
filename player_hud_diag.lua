@@ -103,9 +103,40 @@ if hud then
   add("hudSize=" .. (size and tostring(size[1]) .. "x" .. tostring(size[2]) or "unknown"))
 end
 local f = fs.open("player_hud_diag.txt", "w")
-f.write(table.concat(report, "\n") .. "\n")
+local body = table.concat(report, "\n") .. "\n"
+f.write(body)
 f.close()
-print("Diagnostic report saved (names, UUIDs, and exact coordinates redacted). Uploading to Pastebin...")
-if not shell or not shell.run then error("Pastebin CLI unavailable. Report saved as player_hud_diag.txt") end
-local ok, result = pcall(shell.run, "pastebin", "put", "player_hud_diag.txt")
-if not ok or result == false then print("Upload failed; report remains player_hud_diag.txt") end
+print("Report saved; player names, UUIDs, and exact coordinates are redacted. Uploading...")
+if not http or not http.request then
+  print("HTTP request API unavailable. Report is player_hud_diag.txt")
+  return
+end
+local url = "https://paste.rs/"
+local ok, err = http.request(url, body, { ["Content-Type"] = "text/plain; charset=utf-8" })
+if not ok then
+  print("Upload could not start: " .. tostring(err) .. ". Report is player_hud_diag.txt")
+  return
+end
+local timer = os.startTimer(15)
+while true do
+  local event, eventUrl, result = os.pullEvent()
+  if (event == "http_success" or event == "http_failure") and eventUrl == url then
+    os.cancelTimer(timer)
+    if event == "http_success" then
+      local status = result.getResponseCode and result.getResponseCode() or 200
+      local link = result.readAll():gsub("%s+$", "")
+      result.close()
+      if status == 201 and link:match("^https://paste%.rs/") then
+        print("Paste link: " .. link)
+      else
+        print("Upload returned HTTP " .. tostring(status) .. ". Report is player_hud_diag.txt")
+      end
+    else
+      print("Upload failed: " .. tostring(result) .. ". Report is player_hud_diag.txt")
+    end
+    return
+  elseif event == "timer" and eventUrl == timer then
+    print("Upload timed out. Report is player_hud_diag.txt")
+    return
+  end
+end
