@@ -294,7 +294,8 @@ local function drawComputer(message)
   local width = term.getSize()
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
-  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(fovActive), tostring(testTarget ~= nil), message or "" }
+  local fovDisplay = fovActive and math.floor((wearer.fov or VERTICAL_FOV) + 0.5) or nil
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
     signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
@@ -330,8 +331,8 @@ local function drawComputer(message)
   end
   line(#players + 2, "[ Quit ]", colors.red)
   local hudWidth, hudHeight = hud.getSize()
-  local fovStatus = fovActive and "FOV AUTO" or (fovBridge and "FOV WAIT" or "FOV 110")
-  line(#players + 3, "T Test target  Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R " .. fovStatus, colors.gray)
+  local fovStatus = fovActive and ("FOV " .. fovDisplay) or (fovBridge and "FOV WAIT" or "FOV 110")
+  line(#players + 3, fovStatus .. "  Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R", colors.gray)
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
