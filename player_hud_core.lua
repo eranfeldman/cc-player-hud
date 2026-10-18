@@ -31,13 +31,14 @@ local function scan()
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name, true)
-    -- The server's online-name list is authoritative; don't let a mismatched
-    -- getPlayer result or UUID hide a different player.
-    if p and p.name and p.name:lower() ~= name:lower() then p = nil end
     local playerName = name
-    local ownerName = me.name or me.username
-    local isMe = ownerName and name:lower() == ownerName:lower()
-    if not isMe and not ownerName and me.uuid and p then isMe = p.uuid == me.uuid end
+    local isMe
+    if me.uuid and p and p.uuid then
+      isMe = p.uuid == me.uuid
+    else
+      local ownerName = me.username or me.name
+      isMe = ownerName and name:lower() == ownerName:lower()
+    end
     if not isMe then
       -- shortcut: assumes same dimension when AP omits IDs; use explicit IDs to reject cross-dimensional players.
       local sameWorld = not (p and me.dimension and p.dimension and p.dimension ~= me.dimension)
