@@ -21,7 +21,7 @@ local players, wearer = {}, nil
 local enabled = {}
 
 local function scan()
-  local me = detector.getOwner()
+  local me = detector.getOwner(true)
   if not me then return {}, 0, nil, "Waiting for player data..." end
   local ownerHasPosition = me.x ~= nil and me.y ~= nil and me.z ~= nil
   local ownerCanProject = ownerHasPosition and me.yaw ~= nil and me.pitch ~= nil
@@ -30,7 +30,7 @@ local function scan()
   local present = {}
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
-    local p = detector.getPlayer(name)
+    local p = detector.getPlayer(name, true)
     -- The server's online-name list is authoritative; don't let a mismatched
     -- getPlayer result or UUID hide a different player.
     if p and p.name and p.name:lower() ~= name:lower() then p = nil end
