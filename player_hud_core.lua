@@ -37,6 +37,7 @@ end
 local selected, running = 1, true
 local players, wearer = {}, nil
 local enabled = {}
+local previousComputerSignature
 
 local function scan()
   local me = detector.getOwner(true)
@@ -242,13 +243,28 @@ end
 
 local function drawComputer(message)
   local width = term.getSize()
-  term.setCursorPos(1, 1)
-  term.clear()
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
+    signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
   end
+  local allState = allEnabled and "ON" or (anyEnabled and "MIXED" or "OFF")
+  local missingPosition = false
+  for _, p in ipairs(players) do
+    if not p.positionAvailable then missingPosition = true end
+  end
+  if not message and #players == 0 then message = "No other players returned by detector."
+  elseif not message and missingPosition then message = "* Detector returned no position for this player." end
+  signatureParts[#signatureParts + 1] = allState
+  signatureParts[#signatureParts + 1] = message or ""
+  local signature = table.concat(signatureParts, "\0")
+  if signature == previousComputerSignature then return end
+  previousComputerSignature = signature
+
+  term.setCursorPos(1, 1)
+  term.clear()
 
   local function line(row, label, colour)
     term.setCursorPos(1, row)
@@ -258,19 +274,14 @@ local function drawComputer(message)
     term.write((row == selected and "> " or "  ") .. label:sub(1, math.max(0, width - 2)))
   end
 
-  local allState = allEnabled and "ON" or (anyEnabled and "MIXED" or "OFF")
   line(1, "Toggle all: " .. allState, colors.cyan)
-  local missingPosition = false
   for i, p in ipairs(players) do
-    if not p.positionAvailable then missingPosition = true end
     line(i + 1, (enabled[p.name] and "[x] " or "[ ] ") .. p.name .. (p.positionAvailable and "" or " *"),
       enabled[p.name] and colors.lime or colors.gray)
   end
   line(#players + 2, "[ Quit ]", colors.red)
   local hudWidth, hudHeight = hud.getSize()
   line(#players + 3, "Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R", colors.gray)
-  if not message and #players == 0 then message = "No other players returned by detector."
-  elseif not message and missingPosition then message = "* Detector returned no position for this player." end
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
