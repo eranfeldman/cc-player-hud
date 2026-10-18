@@ -31,9 +31,12 @@ local function scan()
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name)
-    local playerName = p and p.name or name
-    local isMe = (me.uuid and p and p.uuid == me.uuid)
-      or (me.name and playerName:lower() == me.name:lower())
+    -- The server's online-name list is authoritative; don't let a mismatched
+    -- getPlayer result or UUID hide a different player.
+    if p and p.name and p.name:lower() ~= name:lower() then p = nil end
+    local playerName = name
+    local isMe = me.name and name:lower() == me.name:lower()
+    if not isMe and not me.name and me.uuid and p then isMe = p.uuid == me.uuid end
     if not isMe then
       local hasPosition = p and p.x ~= nil and p.y ~= nil and p.z ~= nil and p.dimension ~= nil
       local distance
