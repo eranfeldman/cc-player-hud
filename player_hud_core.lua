@@ -128,9 +128,8 @@ local function drawHud()
         if gridX >= 0 and gridX <= 1 and gridY >= 0 and gridY <= 1 then
           local x = math.floor(gridX * (width - 1) + 1.5)
           local y = math.floor(gridY * (height - 1) + 1.5)
-          local label = p.name .. " " .. string.format("%.1f", p.distance)
           markers[#markers + 1] = {
-            x = x, y = y, label = label,
+            x = x, y = y, name = p.name, distance = string.format("%.1f", p.distance),
             colour = colorsByPlayer[(i - 1) % #colorsByPlayer + 1],
           }
           occupied[y] = occupied[y] or {}
@@ -147,27 +146,55 @@ local function drawHud()
     hud.write(string.char(7))
   end
   for _, marker in ipairs(markers) do
-    local label = marker.label:sub(1, width)
-    local left = math.max(1, math.min(width - #label + 1, marker.x - math.floor(#label / 2)))
-    local function placeLabel(row)
-      if not row then return false end
-      occupied[row] = occupied[row] or {}
+    local function leftFor(text)
+      local label = text:sub(1, width)
+      return math.max(1, math.min(width - #label + 1, marker.x - math.floor(#label / 2))), label
+    end
+    local nameLeft, name = leftFor(marker.name)
+    local distanceLeft, distance = leftFor(marker.distance)
+    local function canPlace(row, left, label)
+      if row < 1 or row > height then return false end
       for x = left, left + #label - 1 do
-        if occupied[row][x] then return false end
+        if occupied[row] and occupied[row][x] then return false end
       end
+      return true
+    end
+    local function place(row, left, label)
       hud.setTextColour(colors.white)
       hud.setCursorPos(left, row)
       hud.write(label)
+      occupied[row] = occupied[row] or {}
       for x = left, left + #label - 1 do occupied[row][x] = true end
-      return true
     end
     local placed = false
-    for row = marker.y + 1, height do
-      if placeLabel(row) then placed = true; break end
+    for gap = 0, height do
+      local nameY, distanceY = marker.y - 1 - gap, marker.y + 1 + gap
+      if canPlace(nameY, nameLeft, name) and canPlace(distanceY, distanceLeft, distance) then
+        place(nameY, nameLeft, name)
+        place(distanceY, distanceLeft, distance)
+        placed = true
+        break
+      end
     end
     if not placed then
-      for row = marker.y - 1, 1, -1 do
-        if placeLabel(row) then break end
+      for offset = 1, height do
+        local nameY, distanceY = marker.y + offset, marker.y + offset + 1
+        if canPlace(nameY, nameLeft, name) and canPlace(distanceY, distanceLeft, distance) then
+          place(nameY, nameLeft, name)
+          place(distanceY, distanceLeft, distance)
+          placed = true
+          break
+        end
+      end
+    end
+    if not placed then
+      for offset = 2, height + 1 do
+        local nameY, distanceY = marker.y - offset, marker.y - offset + 1
+        if canPlace(nameY, nameLeft, name) and canPlace(distanceY, distanceLeft, distance) then
+          place(nameY, nameLeft, name)
+          place(distanceY, distanceLeft, distance)
+          break
+        end
       end
     end
   end
