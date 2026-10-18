@@ -1,5 +1,5 @@
 -- Downloads and runs the latest player HUD on every launch.
-local url = "https://github.com/eranfeldman/cc-player-hud/raw/refs/heads/main/player_hud_core.lua"
+local url = "https://raw.githubusercontent.com/eranfeldman/cc-player-hud/main/player_hud_core.lua?update=" .. tostring(os.epoch("utc"))
 local core = "player_hud_core.lua"
 
 local response, err
