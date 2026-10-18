@@ -1,7 +1,7 @@
 -- Pocket Unlimited + Advanced Peripherals Player Detector + HUD Glasses CC
 local MAX_PLAYERS = 10
 local REFRESH = 0.05
-local HUD_WIDTH, HUD_HEIGHT = 256, 128
+local HUD_SIZES = { { 80, 28 }, { 128, 48 }, { 192, 72 }, { 256, 96 }, { 256, 128 } }
 local VERTICAL_FOV = 110
 local SCREEN_ASPECT = 16 / 9
 -- shortcut: assumes 16:9 HUD FIT and 110° FOV; adjust if view settings or dynamic FOV effects differ.
@@ -16,9 +16,18 @@ for _, upgrade in pairs(pocket.upgrades()) do
 end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
+local detailIndex = #HUD_SIZES
 if type(hud.setSize) == "function" then
   local width, height = hud.getSize()
-  if width ~= HUD_WIDTH or height ~= HUD_HEIGHT then pcall(hud.setSize, HUD_WIDTH, HUD_HEIGHT) end
+  local size = HUD_SIZES[detailIndex]
+  if width ~= size[1] or height ~= size[2] then pcall(hud.setSize, size[1], size[2]) end
+end
+local function changeDetail(delta)
+  if type(hud.setSize) ~= "function" then return end
+  local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
+  if nextIndex == detailIndex then return end
+  local size = HUD_SIZES[nextIndex]
+  if pcall(hud.setSize, size[1], size[2]) then detailIndex = nextIndex end
 end
 
 local selected, running = 1, true
@@ -191,10 +200,12 @@ local function drawComputer(message)
       enabled[p.name] and colors.lime or colors.gray)
   end
   line(#players + 2, "[ Quit ]", colors.red)
+  local hudWidth, hudHeight = hud.getSize()
+  line(#players + 3, "Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R", colors.gray)
   if not message and #players == 0 then message = "No other players returned by detector."
   elseif not message and missingPosition then message = "* Detector returned no position for this player." end
   if message then
-    term.setCursorPos(1, #players + 3)
+    term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
     print(message)
   end
@@ -238,6 +249,8 @@ local function controlLoop()
     if event == "key" then
       if key == keys.up then selected = math.max(1, selected - 1)
       elseif key == keys.down then selected = math.min(#players + 2, selected + 1)
+      elseif key == keys.left then changeDetail(-1)
+      elseif key == keys.right then changeDetail(1)
       elseif key == keys.enter then activateSelected() end
     elseif event == "mouse_click" and key == 1 and y and y <= #players + 2 then
       selected = math.max(1, y)
