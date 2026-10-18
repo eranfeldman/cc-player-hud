@@ -1,6 +1,7 @@
 -- Pocket Unlimited + Advanced Peripherals Player Detector + HUD Glasses CC
 local MAX_PLAYERS = 10
 local REFRESH = 0.05
+local HUD_WIDTH, HUD_HEIGHT = 256, 128
 local VERTICAL_FOV = 110
 local SCREEN_ASPECT = 16 / 9
 -- shortcut: assumes 16:9 HUD FIT and 110° FOV; adjust if view settings or dynamic FOV effects differ.
@@ -15,6 +16,10 @@ for _, upgrade in pairs(pocket.upgrades()) do
 end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
+if type(hud.setSize) == "function" then
+  local width, height = hud.getSize()
+  if width ~= HUD_WIDTH or height ~= HUD_HEIGHT then pcall(hud.setSize, HUD_WIDTH, HUD_HEIGHT) end
+end
 
 local selected, running = 1, true
 local players, wearer = {}, nil
@@ -130,7 +135,7 @@ local function drawHud()
   for _, marker in ipairs(markers) do
     hud.setTextColour(marker.colour)
     hud.setCursorPos(marker.x, marker.y)
-    hud.write(".")
+    hud.write(string.char(7))
   end
   for _, marker in ipairs(markers) do
     local label = marker.label:sub(1, width)
@@ -141,7 +146,7 @@ local function drawHud()
       for x = left, left + #label - 1 do
         if occupied[row][x] then return false end
       end
-      hud.setTextColour(marker.colour)
+      hud.setTextColour(colors.white)
       hud.setCursorPos(left, row)
       hud.write(label)
       for x = left, left + #label - 1 do occupied[row][x] = true end
