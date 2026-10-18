@@ -128,7 +128,7 @@ local function drawHud()
         if gridX >= 0 and gridX <= 1 and gridY >= 0 and gridY <= 1 then
           local x = math.floor(gridX * (width - 1) + 1.5)
           local y = math.floor(gridY * (height - 1) + 1.5)
-          local label = p.name .. " " .. string.format("%.1f blocks", p.distance)
+          local label = p.name .. " " .. string.format("%.1f", p.distance)
           markers[#markers + 1] = {
             x = x, y = y, label = label,
             colour = colorsByPlayer[(i - 1) % #colorsByPlayer + 1],
