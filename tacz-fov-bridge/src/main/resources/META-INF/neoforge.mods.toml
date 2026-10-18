@@ -8,6 +8,7 @@ version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
 description='''Sends the local camera FOV to the server for the player's own CC:Tweaked pocket HUD.'''
+displayTest="IGNORE_SERVER_VERSION"
 
 [[dependencies.${mod_id}]]
 modId="neoforge"

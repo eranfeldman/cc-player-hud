@@ -15,6 +15,10 @@ for _, upgrade in pairs(pocket.upgrades()) do
   if type(upgrade.getSize) == "function" and type(upgrade.setCursorPos) == "function" then hud = upgrade end
   if type(upgrade.getFov) == "function" then fovBridge = upgrade end
 end
+if not fovBridge then
+  local ok, api = pcall(require, "hudfovbridge.fov")
+  if ok and type(api) == "table" and type(api.getFov) == "function" then fovBridge = api end
+end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
 local detailIndex = 2
