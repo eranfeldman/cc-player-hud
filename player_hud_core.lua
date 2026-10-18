@@ -1,7 +1,9 @@
 -- Pocket Unlimited + Advanced Peripherals Player Detector + HUD Glasses CC
 local MAX_PLAYERS = 10
-local REFRESH = 1
-local VERTICAL_FOV = 70
+local REFRESH = 0.05
+local VERTICAL_FOV = 110
+local SCREEN_ASPECT = 16 / 9
+-- shortcut: assumes 16:9 HUD FIT and 110° FOV; adjust if view settings or dynamic FOV effects differ.
 
 local pocket = peripheral.wrap("back")
 assert(pocket and pocket.upgrades, "Enable Pocket Unlimited and equip Player Detector + HUD Glasses")
@@ -69,24 +71,75 @@ local function drawHud()
 
   local colorsByPlayer = { colors.lime, colors.red, colors.cyan, colors.yellow, colors.magenta,
     colors.orange, colors.lightBlue, colors.pink, colors.green, colors.purple }
-  local verticalTangent = math.tan(math.rad(VERTICAL_FOV / 2))
-  local aspect = width / height * (2 / 3) -- CC glyphs are about two thirds as wide as they are tall.
-  local horizontalTangent = verticalTangent * aspect
+  local yaw, pitch = math.rad(wearer.yaw), math.rad(wearer.pitch)
+  local sy, cy, sp, cp = math.sin(yaw), math.cos(yaw), math.sin(pitch), math.cos(pitch)
+  local fx, fy, fz = -sy * cp, -sp, cy * cp
+  local rx, rz = -cy, -sy
+  local ux, uy, uz = -sp * sy, cp, sp * cy
+  local tanV = math.tan(math.rad(VERTICAL_FOV / 2))
+  local tanH = tanV * SCREEN_ASPECT
+  local gridAspect = width / height * (2 / 3)
+  local contentW = math.min(1, gridAspect / SCREEN_ASPECT)
+  local contentH = math.min(1, SCREEN_ASPECT / gridAspect)
+  local offsetX, offsetY = (1 - contentW) / 2, (1 - contentH) / 2
+  local markers, occupied = {}, {}
+
   for i, p in ipairs(players) do
-    if enabled[p.name] and p.dimension == wearer.dimension then
-      local dx, dy, dz = p.x - wearer.x, p.y + p.eyeHeight * 0.55 - (wearer.y + (wearer.eyeHeight or 1.62)), p.z - wearer.z
-      local horizontal = math.sqrt(dx * dx + dz * dz)
-      local yaw = (math.deg(math.atan(-dx, dz)) - wearer.yaw + 180) % 360 - 180
-      local pitch = -math.deg(math.atan(dy, horizontal)) - wearer.pitch
-      local nx = math.tan(math.rad(yaw)) / horizontalTangent
-      local ny = math.tan(math.rad(pitch)) / verticalTangent
-      if math.abs(yaw) < 89 and math.abs(pitch) < 89 and math.abs(nx) <= 1 and math.abs(ny) <= 1 then
-        local x = math.max(1, math.min(width, math.floor((nx + 1) * width / 2 + 0.5)))
-        local y = math.max(1, math.min(height, math.floor((ny + 1) * height / 2 + 0.5)))
-        hud.setTextColour(colorsByPlayer[(i - 1) % #colorsByPlayer + 1])
-        if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
-        hud.setCursorPos(x, y)
-        hud.write(".")
+    if enabled[p.name] and p.dimension == wearer.dimension and p.distance then
+      local dx = p.x - wearer.x
+      local dy = p.y + p.eyeHeight * 0.55 - (wearer.y + (wearer.eyeHeight or 1.62))
+      local dz = p.z - wearer.z
+      local cameraX = dx * rx + dz * rz
+      local cameraY = dx * ux + dy * uy + dz * uz
+      local cameraZ = dx * fx + dy * fy + dz * fz
+      if cameraZ > 0 then
+        local u = 0.5 + cameraX / (2 * cameraZ * tanH)
+        local v = 0.5 - cameraY / (2 * cameraZ * tanV)
+        local gridX = (u - offsetX) / contentW
+        local gridY = (v - offsetY) / contentH
+        if gridX >= 0 and gridX <= 1 and gridY >= 0 and gridY <= 1 then
+          local x = math.floor(gridX * (width - 1) + 1.5)
+          local y = math.floor(gridY * (height - 1) + 1.5)
+          local label = p.name .. " " .. string.format("%.1f blocks", p.distance)
+          markers[#markers + 1] = {
+            x = x, y = y, label = label,
+            colour = colorsByPlayer[(i - 1) % #colorsByPlayer + 1],
+          }
+          occupied[y] = occupied[y] or {}
+          occupied[y][x] = true
+        end
+      end
+    end
+  end
+
+  if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
+  for _, marker in ipairs(markers) do
+    hud.setTextColour(marker.colour)
+    hud.setCursorPos(marker.x, marker.y)
+    hud.write(".")
+  end
+  for _, marker in ipairs(markers) do
+    local label = marker.label:sub(1, width)
+    local left = math.max(1, math.min(width - #label + 1, marker.x - math.floor(#label / 2)))
+    local function placeLabel(row)
+      if not row then return false end
+      occupied[row] = occupied[row] or {}
+      for x = left, left + #label - 1 do
+        if occupied[row][x] then return false end
+      end
+      hud.setTextColour(marker.colour)
+      hud.setCursorPos(left, row)
+      hud.write(label)
+      for x = left, left + #label - 1 do occupied[row][x] = true end
+      return true
+    end
+    local placed = false
+    for row = marker.y + 1, height do
+      if placeLabel(row) then placed = true; break end
+    end
+    if not placed then
+      for row = marker.y - 1, 1, -1 do
+        if placeLabel(row) then break end
       end
     end
   end
