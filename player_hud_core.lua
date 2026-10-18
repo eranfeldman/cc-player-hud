@@ -1,6 +1,6 @@
 -- Pocket Unlimited + Advanced Peripherals Player Detector + HUD Glasses CC
 local MAX_PLAYERS = 10
-local REFRESH = 0.05
+local REFRESH = 0.1
 local HUD_SIZES = { { 80, 28 }, { 128, 48 }, { 192, 72 }, { 256, 96 }, { 256, 128 } }
 local VERTICAL_FOV = 110
 local SCREEN_ASPECT = 16 / 9
@@ -22,7 +22,7 @@ if type(hud.setSize) == "function" then
   local size = HUD_SIZES[detailIndex]
   if width ~= size[1] or height ~= size[2] then pcall(hud.setSize, size[1], size[2]) end
 end
-local previousHudRows, needsFullHudClear = {}, true
+local previousHudRows, needsFullHudClear, previousHudSignature = {}, true, nil
 local function changeDetail(delta)
   if type(hud.setSize) ~= "function" then return end
   local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
@@ -30,7 +30,7 @@ local function changeDetail(delta)
   local size = HUD_SIZES[nextIndex]
   if pcall(hud.setSize, size[1], size[2]) then
     detailIndex = nextIndex
-    previousHudRows, needsFullHudClear = {}, true
+    previousHudRows, needsFullHudClear, previousHudSignature = {}, true, nil
   end
 end
 
@@ -97,13 +97,15 @@ end
 
 local function drawHud()
   local width, height = hud.getSize()
-  hud.setBackgroundColour(0)
   if not wearer or width < 1 or height < 1 then
-    if needsFullHudClear then hud.clear(); needsFullHudClear = false
+    if needsFullHudClear then
+      hud.setBackgroundColour(0)
+      hud.clear()
+      needsFullHudClear = false
     else
       for row in pairs(previousHudRows) do hud.setCursorPos(1, row); hud.clearLine() end
     end
-    previousHudRows = {}
+    previousHudRows, previousHudSignature = {}, nil
     return
   end
 
@@ -203,13 +205,25 @@ local function drawHud()
     end
   end
 
+  local signatureParts = {}
+  for _, marker in ipairs(markers) do
+    signatureParts[#signatureParts + 1] = marker.name .. ":" .. marker.x .. ":" .. marker.y .. ":" .. marker.distance .. ":" .. marker.colour
+  end
+  for _, label in ipairs(labels) do
+    signatureParts[#signatureParts + 1] = label.text .. ":" .. label.x .. ":" .. label.y
+  end
+  local signature = table.concat(signatureParts, "|")
+  if not needsFullHudClear and signature == previousHudSignature then return end
+
   if needsFullHudClear then
+    hud.setBackgroundColour(0)
     hud.clear()
     needsFullHudClear = false
   else
     local rowsToClear = {}
     for row in pairs(previousHudRows) do rowsToClear[row] = true end
     for row in pairs(currentHudRows) do rowsToClear[row] = true end
+    hud.setBackgroundColour(0)
     for row in pairs(rowsToClear) do hud.setCursorPos(1, row); hud.clearLine() end
   end
   if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
@@ -223,7 +237,7 @@ local function drawHud()
     hud.setCursorPos(label.x, label.y)
     hud.write(label.text)
   end
-  previousHudRows = currentHudRows
+  previousHudRows, previousHudSignature = currentHudRows, signature
 end
 
 local function drawComputer(message)
