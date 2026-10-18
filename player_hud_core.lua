@@ -29,10 +29,6 @@ local function scan()
   local found = {}
   local present = {}
   local online = detector.getOnlinePlayers() or {}
-  local sameDimension = {}
-  for _, name in ipairs(detector.getPlayersInRange(46340) or {}) do
-    sameDimension[name:lower()] = true
-  end
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name, true)
     -- The server's online-name list is authoritative; don't let a mismatched
@@ -43,8 +39,8 @@ local function scan()
     local isMe = ownerName and name:lower() == ownerName:lower()
     if not isMe and not ownerName and me.uuid and p then isMe = p.uuid == me.uuid end
     if not isMe then
-      local sameWorld = p and me.dimension ~= nil and p.dimension ~= nil
-        and p.dimension == me.dimension or sameDimension[name:lower()] == true
+      -- shortcut: assumes same dimension when AP omits IDs; use explicit IDs to reject cross-dimensional players.
+      local sameWorld = not (p and me.dimension and p.dimension and p.dimension ~= me.dimension)
       local hasPosition = p and p.x ~= nil and p.y ~= nil and p.z ~= nil and sameWorld
       local distance
       if hasPosition and ownerHasPosition then
