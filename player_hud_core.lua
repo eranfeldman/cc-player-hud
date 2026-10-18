@@ -1,7 +1,7 @@
 -- Pocket Unlimited + Advanced Peripherals Player Detector + HUD Glasses CC
 local MAX_PLAYERS = 10
 local REFRESH = 1
-local PAGE_SECONDS = 3
+local VERTICAL_FOV = 70
 
 local pocket = peripheral.wrap("back")
 assert(pocket and pocket.upgrades, "Enable Pocket Unlimited and equip Player Detector + HUD Glasses")
@@ -14,24 +14,14 @@ end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
 
-local directions = { "front", "front-right", "right", "back-right", "behind", "back-left", "left", "front-left" }
 local mode, selected, visible, running = "all", 1, true, true
-local players, onlineCount, ticks = {}, 0, 0
-
-local function round(n, places)
-  local scale = 10 ^ places
-  return math.floor(n * scale + 0.5) / scale
-end
-
-local function direction(dx, dz, yaw)
-  local bearing = math.deg(math.atan(-dx, dz))
-  local relative = (bearing - yaw + 180) % 360 - 180
-  return directions[math.floor((relative + 22.5) / 45) % 8 + 1]
-end
+local players, onlineCount, wearer = {}, 0, nil
 
 local function scan()
   local me = detector.getOwner()
-  if not me or not me.x or not me.z or not me.yaw then return {}, 0, "Waiting for player data..." end
+  if not me or not me.x or not me.y or not me.z or not me.yaw or not me.pitch then
+    return {}, 0, nil, "Waiting for player data..."
+  end
 
   local found = {}
   local online = detector.getOnlinePlayers() or {}
@@ -43,9 +33,11 @@ local function scan()
       found[#found + 1] = {
         name = p.name or name,
         dimension = p.dimension,
+        x = p.x,
+        y = p.y,
+        z = p.z,
+        eyeHeight = p.eyeHeight or 1.62,
         distance = sameDimension and math.sqrt(dx * dx + dy * dy + dz * dz) or nil,
-        direction = sameDimension and direction(dx, dz, me.yaw) or nil,
-        vertical = round(dy, 0),
       }
     end
   end
@@ -56,57 +48,38 @@ local function scan()
     return a.name < b.name
   end)
   while #found > MAX_PLAYERS do table.remove(found) end
-  return found, #online
+  return found, #online, me
 end
 
-local function hudLine(y, text, width)
-  hud.setCursorPos(1, y)
-  hud.write(text:sub(1, width))
-end
-
-local function drawHud(message)
+local function drawHud()
   local width, height = hud.getSize()
   hud.setBackgroundColour(0)
   hud.clear()
-  hud.setTextColour(colors.white)
-  hudLine(1, mode == "all" and string.format("PLAYERS %d/%d ONLINE", #players, onlineCount) or "PLAYER: " .. (players[selected] and players[selected].name or "none"), width)
+  if not wearer or width < 1 or height < 1 then return end
 
-  if message then
-    hudLine(2, message, width)
-    return
-  end
-
-  if mode == "one" then
-    local p = players[selected]
-    if p then
-      hud.setTextColour(colors.lime)
-      hudLine(2, p.name, width)
-      hud.setTextColour(colors.white)
-      if p.distance then
-        hudLine(3, p.direction .. "  " .. string.format("%.1f", p.distance) .. "m", width)
-        if p.vertical ~= 0 then hudLine(4, string.format("Y %+.0f", p.vertical), width) end
-      else
-        hudLine(3, p.dimension or "different dimension", width)
+  local colorsByPlayer = { colors.lime, colors.red, colors.cyan, colors.yellow, colors.magenta,
+    colors.orange, colors.lightBlue, colors.pink, colors.green, colors.purple }
+  local verticalTangent = math.tan(math.rad(VERTICAL_FOV / 2))
+  local aspect = width / height * (2 / 3) -- CC glyphs are about two thirds as wide as they are tall.
+  local horizontalTangent = verticalTangent * aspect
+  for i, p in ipairs(players) do
+    if p.dimension == wearer.dimension then
+      local dx, dy, dz = p.x - wearer.x, p.y + p.eyeHeight * 0.55 - (wearer.y + (wearer.eyeHeight or 1.62)), p.z - wearer.z
+      local horizontal = math.sqrt(dx * dx + dz * dz)
+      local yaw = (math.deg(math.atan(-dx, dz)) - wearer.yaw + 180) % 360 - 180
+      local pitch = -math.deg(math.atan(dy, horizontal)) - wearer.pitch
+      local nx = math.tan(math.rad(yaw)) / horizontalTangent
+      local ny = math.tan(math.rad(pitch)) / verticalTangent
+      if math.abs(yaw) < 89 and math.abs(pitch) < 89 and math.abs(nx) <= 1 and math.abs(ny) <= 1 then
+        local x = math.max(1, math.min(width, math.floor((nx + 1) * width / 2 + 0.5)))
+        local y = math.max(1, math.min(height, math.floor((ny + 1) * height / 2 + 0.5)))
+        hud.setTextColour(colorsByPlayer[(i - 1) % #colorsByPlayer + 1])
+        if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
+        hud.setCursorPos(x, y)
+        hud.write(".")
       end
-    else
-      hudLine(2, "No other players online", width)
     end
-    return
   end
-
-  if #players == 0 then hudLine(2, "No other players online", width); return end
-  local rows = math.max(1, height - 2)
-  local pages = math.ceil(#players / rows)
-  local page = math.floor(ticks / PAGE_SECONDS) % pages + 1
-  local first = (page - 1) * rows + 1
-  for row = 1, rows do
-    local p = players[first + row - 1]
-    if not p then break end
-    local line = p.distance and string.format("%s %s %.1fm", p.name, p.direction, p.distance)
-      or string.format("%s @ %s", p.name, p.dimension or "other dimension")
-    hudLine(row + 1, line, width)
-  end
-  if pages > 1 and height > 1 then hudLine(height, string.format("Page %d/%d", page, pages), width) end
 end
 
 local function drawComputer()
@@ -116,21 +89,24 @@ local function drawComputer()
   print("Mode: " .. (mode == "all" and "ALL" or "ONE"))
   if mode == "one" then print("Selected: " .. (players[selected] and players[selected].name or "none")) end
   print("Showing: " .. #players .. "/" .. onlineCount .. " online   HUD: " .. (visible and "ON" or "OFF"))
+  if not wearer then print("Waiting for player data or detector error.") end
   print("A: all   P: next player   H: HUD on/off   Q: quit")
 end
 
 local function updateLoop()
   while running do
-    local ok, result, count, message = pcall(scan)
+    local ok, result, count, currentWearer, message = pcall(scan)
     if ok then
       players, onlineCount = result, count or #result
+      wearer = currentWearer
       if selected > #players then selected = 1 end
     else
-      players, onlineCount, message = {}, 0, "Detector error: " .. tostring(result)
+      players, onlineCount, wearer = {}, 0, nil
+      message = "Detector error: " .. tostring(result)
     end
     drawComputer()
-    if visible then drawHud(message) else hud.clear() end
-    ticks = ticks + REFRESH
+    if message then print(message) end
+    if visible then drawHud() else hud.clear() end
     sleep(REFRESH)
   end
 end

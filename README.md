@@ -17,4 +17,4 @@ Equip the Advanced Peripherals Player Detector and HUD Glasses pocket upgrades t
 - `H`: hide/show the HUD
 - `Q`: quit
 
-The program tracks up to 10 other online players. Players in another dimension are labeled with that dimension because direction and distance are not comparable across dimensions.
+The HUD shows only small, contrasting dots projected into your view for up to 10 other online players in the same dimension. Players outside your current view are not drawn; players in another dimension cannot be placed on your screen. The display uses the HUD's character grid and an assumed 70-degree vertical field of view, so dot placement is approximate rather than pixel-perfect. The pocket computer itself shows the controls and current all-player/single-player selection.
