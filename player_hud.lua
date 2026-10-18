@@ -1,11 +1,26 @@
 -- Downloads and runs the latest player HUD on every launch.
-local url = "https://raw.githubusercontent.com/eranfeldman/cc-player-hud/main/player_hud_core.lua?update=" .. tostring(os.epoch("utc"))
+local api = "https://api.github.com/repos/eranfeldman/cc-player-hud/commits/main?update=" .. tostring(os.epoch("utc"))
 local core = "player_hud_core.lua"
 
-local response, err
+local url, response, err
 if http and http.get then
-  local ok, result, reason = pcall(http.get, url)
-  if ok then response, err = result, reason else err = result end
+  local ok, result, reason = pcall(http.get, api, {
+    Accept = "application/vnd.github+json",
+    ["Cache-Control"] = "no-cache",
+  })
+  if ok and result then
+    local commit = textutils.unserialiseJSON(result.readAll())
+    result.close()
+    if commit and type(commit.sha) == "string" and #commit.sha == 40 and commit.sha:match("^[%da-f]+$") then
+      url = "https://raw.githubusercontent.com/eranfeldman/cc-player-hud/" .. commit.sha .. "/player_hud_core.lua"
+      local downloaded, file, downloadError = pcall(http.get, url)
+      if downloaded then response, err = file, downloadError else err = file end
+    else
+      err = "GitHub did not return a valid commit."
+    end
+  else
+    err = ok and reason or result
+  end
 else
   err = "HTTP API is unavailable"
 end
