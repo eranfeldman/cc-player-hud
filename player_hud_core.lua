@@ -29,18 +29,25 @@ local function scan()
   local found = {}
   local present = {}
   local online = detector.getOnlinePlayers() or {}
+  local sameDimension = {}
+  for _, name in ipairs(detector.getPlayersInRange(46340) or {}) do
+    sameDimension[name:lower()] = true
+  end
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name, true)
     -- The server's online-name list is authoritative; don't let a mismatched
     -- getPlayer result or UUID hide a different player.
     if p and p.name and p.name:lower() ~= name:lower() then p = nil end
     local playerName = name
-    local isMe = me.name and name:lower() == me.name:lower()
-    if not isMe and not me.name and me.uuid and p then isMe = p.uuid == me.uuid end
+    local ownerName = me.name or me.username
+    local isMe = ownerName and name:lower() == ownerName:lower()
+    if not isMe and not ownerName and me.uuid and p then isMe = p.uuid == me.uuid end
     if not isMe then
-      local hasPosition = p and p.x ~= nil and p.y ~= nil and p.z ~= nil and p.dimension ~= nil
+      local sameWorld = p and me.dimension ~= nil and p.dimension ~= nil
+        and p.dimension == me.dimension or sameDimension[name:lower()] == true
+      local hasPosition = p and p.x ~= nil and p.y ~= nil and p.z ~= nil and sameWorld
       local distance
-      if hasPosition and ownerHasPosition and p.dimension == me.dimension then
+      if hasPosition and ownerHasPosition then
         local dx, dy, dz = p.x - me.x, p.y - me.y, p.z - me.z
         distance = math.sqrt(dx * dx + dy * dy + dz * dz)
       end
@@ -52,6 +59,7 @@ local function scan()
         z = p and p.z,
         eyeHeight = (p and p.eyeHeight) or 1.62,
         positionAvailable = hasPosition and ownerCanProject,
+        sameDimension = sameWorld,
         distance = distance,
       }
       present[playerName] = true
@@ -94,7 +102,7 @@ local function drawHud()
   local markers, occupied = {}, {}
 
   for i, p in ipairs(players) do
-    if enabled[p.name] and p.positionAvailable and p.dimension == wearer.dimension and p.distance then
+    if enabled[p.name] and p.positionAvailable and p.sameDimension and p.distance then
       local dx = p.x - wearer.x
       local dy = p.y + p.eyeHeight * 0.55 - (wearer.y + (wearer.eyeHeight or 1.62))
       local dz = p.z - wearer.z
