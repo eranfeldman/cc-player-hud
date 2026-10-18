@@ -263,7 +263,7 @@ local function drawHud()
     local foreground = table.concat(buffer.foreground, "", buffer.left, buffer.right)
     local background = table.concat(buffer.background, "", buffer.left, buffer.right)
     currentRows[row] = { text = text, foreground = foreground, background = background,
-      signature = text .. foreground }
+      signature = tostring(buffer.left) .. ":" .. text .. foreground }
   end
   local fullClear = needsFullHudClear
   local rowsToUpdate = {}
