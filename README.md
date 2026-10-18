@@ -10,6 +10,10 @@ The ComputerCraft HTTP API must be enabled and allow `raw.githubusercontent.com`
 
 Equip the Advanced Peripherals Player Detector and HUD Glasses pocket upgrades through Pocket Unlimited before running the program.
 
+For automatic TaCZ aiming alignment, install the `HUD FOV Bridge` jar on the server and the client running this HUD. Craft and add its **HUD FOV Link** pocket upgrade to the Unlimited Pocket. The program will then use the live camera FOV; without the bridge it falls back to 110°. The bridge source and build instructions are in [`tacz-fov-bridge`](tacz-fov-bridge/README.md).
+
+The built jar is available at [`downloads/hudfovbridge-1.0.0.jar`](downloads/hudfovbridge-1.0.0.jar). Put the same jar in the `mods` folder on the server and every client using the FOV HUD, then restart. This bridge is a separate NeoForge mod and does not auto-update with the Lua launcher.
+
 ## Controls
 
 - `Up` / `Down`: select Toggle all, a player, or Quit
@@ -19,4 +23,4 @@ Equip the Advanced Peripherals Player Detector and HUD Glasses pocket upgrades t
 
 The first row turns every player's dot on or off. Each player row toggles only that player's dot. Select **Quit** to close the program.
 
-The pocket computer lists up to 10 other online players. If a player is listed with `*`, the detector returned their name but not usable position data. The HUD starts at 256×128 and refreshes detector data every 0.1 seconds (10 times per second). Use Left/Right to step through five detail levels, down to 80×28. Higher detail means smaller text and finer marker placement. The HUD skips unchanged frames and redraws only rows used by dots and labels; the pocket list also redraws only when its contents or selection change. It shows each enabled, same-dimension player's colored dot, with the name above and distance below it. Players outside your current view are not drawn, and players in another dimension cannot be projected onto your screen. Projection assumes a 110-degree vertical FOV (Minecraft's Quake Pro setting), a 16:9 screen, and the HUD Glasses default FIT layout. Minecraft's dynamic FOV effects can shift markers slightly while active.
+The pocket computer lists up to 10 other online players. If a player is listed with `*`, the detector returned their name but not usable position data. The HUD starts at 256×128 and refreshes detector data every 0.1 seconds (10 times per second). Use Left/Right to step through five detail levels, down to 80×28. Higher detail means smaller text and finer marker placement. The HUD skips unchanged frames and redraws only rows used by dots and labels; the pocket list also redraws only when its contents or selection change. It shows each enabled, same-dimension player's colored dot, with the name above and distance below it. Players outside your current view are not drawn, and players in another dimension cannot be projected onto your screen. Without the FOV bridge, projection assumes a 110-degree vertical FOV (Minecraft's Quake Pro setting); with it, projection uses the live camera FOV.

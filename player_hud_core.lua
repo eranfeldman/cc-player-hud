@@ -9,10 +9,11 @@ local SCREEN_ASPECT = 16 / 9
 local pocket = peripheral.wrap("back")
 assert(pocket and pocket.upgrades, "Enable Pocket Unlimited and equip Player Detector + HUD Glasses")
 
-local detector, hud
+local detector, hud, fovBridge
 for _, upgrade in pairs(pocket.upgrades()) do
   if type(upgrade.getOwner) == "function" and type(upgrade.getPlayer) == "function" then detector = upgrade end
   if type(upgrade.getSize) == "function" and type(upgrade.setCursorPos) == "function" then hud = upgrade end
+  if type(upgrade.getFov) == "function" then fovBridge = upgrade end
 end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
@@ -22,7 +23,8 @@ if type(hud.setSize) == "function" then
   local size = HUD_SIZES[detailIndex]
   if width ~= size[1] or height ~= size[2] then pcall(hud.setSize, size[1], size[2]) end
 end
-local previousHudRows, needsFullHudClear, previousHudSignature = {}, true, nil
+local previousHudRows, needsFullHudClear = {}, true
+if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
 local function changeDetail(delta)
   if type(hud.setSize) ~= "function" then return end
   local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
@@ -30,7 +32,7 @@ local function changeDetail(delta)
   local size = HUD_SIZES[nextIndex]
   if pcall(hud.setSize, size[1], size[2]) then
     detailIndex = nextIndex
-    previousHudRows, needsFullHudClear, previousHudSignature = {}, true, nil
+    previousHudRows, needsFullHudClear = {}, true
   end
 end
 
@@ -38,6 +40,7 @@ local selected, running = 1, true
 local players, wearer = {}, nil
 local enabled = {}
 local previousComputerSignature
+local fovActive = false
 
 local function scan()
   local me = detector.getOwner(true)
@@ -47,6 +50,13 @@ local function scan()
 
   local found = {}
   local present = {}
+  if fovBridge then
+    local ok, fov = pcall(fovBridge.getFov)
+    fovActive = ok and type(fov) == "number"
+    if fovActive then me.fov = fov end
+  else
+    fovActive = false
+  end
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name, true)
@@ -106,7 +116,7 @@ local function drawHud()
     else
       for row in pairs(previousHudRows) do hud.setCursorPos(1, row); hud.clearLine() end
     end
-    previousHudRows, previousHudSignature = {}, nil
+    previousHudRows = {}
     return
   end
 
@@ -117,13 +127,13 @@ local function drawHud()
   local fx, fy, fz = -sy * cp, -sp, cy * cp
   local rx, rz = -cy, -sy
   local ux, uy, uz = -sp * sy, cp, sp * cy
-  local tanV = math.tan(math.rad(VERTICAL_FOV / 2))
+  local tanV = math.tan(math.rad((wearer.fov or VERTICAL_FOV) / 2))
   local tanH = tanV * SCREEN_ASPECT
   local gridAspect = width / height * (2 / 3)
   local contentW = math.min(1, gridAspect / SCREEN_ASPECT)
   local contentH = math.min(1, SCREEN_ASPECT / gridAspect)
   local offsetX, offsetY = (1 - contentW) / 2, (1 - contentH) / 2
-  local markers, labels, occupied, currentHudRows = {}, {}, {}, {}
+  local markers, labels, occupied = {}, {}, {}
 
   for i, p in ipairs(players) do
     if enabled[p.name] and p.positionAvailable and p.sameDimension and p.distance then
@@ -147,7 +157,6 @@ local function drawHud()
           }
           occupied[y] = occupied[y] or {}
           occupied[y][x] = true
-          currentHudRows[y] = true
         end
       end
     end
@@ -171,7 +180,6 @@ local function drawHud()
       labels[#labels + 1] = { x = left, y = row, text = label }
       occupied[row] = occupied[row] or {}
       for x = left, left + #label - 1 do occupied[row][x] = true end
-      currentHudRows[row] = true
     end
     local placed = false
     for gap = 0, height do
@@ -206,46 +214,75 @@ local function drawHud()
     end
   end
 
-  local signatureParts = {}
-  for _, marker in ipairs(markers) do
-    signatureParts[#signatureParts + 1] = marker.name .. ":" .. marker.x .. ":" .. marker.y .. ":" .. marker.distance .. ":" .. marker.colour
+  local rowBuffers = {}
+  local function rowBuffer(row)
+    local buffer = rowBuffers[row]
+    if not buffer then
+      buffer = { text = {}, foreground = {}, background = {}, left = width + 1, right = 0 }
+      rowBuffers[row] = buffer
+    end
+    return buffer
   end
+  local function put(row, x, char, colour)
+    local buffer = rowBuffer(row)
+    buffer.text[x] = char
+    buffer.foreground[x] = colors.toBlit(colour)
+    buffer.background[x] = "-"
+    buffer.left = math.min(buffer.left, x)
+    buffer.right = math.max(buffer.right, x)
+  end
+  for _, marker in ipairs(markers) do put(marker.y, marker.x, string.char(7), marker.colour) end
   for _, label in ipairs(labels) do
-    signatureParts[#signatureParts + 1] = label.text .. ":" .. label.x .. ":" .. label.y
+    for i = 1, #label.text do put(label.y, label.x + i - 1, label.text:sub(i, i), colors.white) end
   end
-  local signature = table.concat(signatureParts, "|")
-  if not needsFullHudClear and signature == previousHudSignature then return end
 
-  if needsFullHudClear then
+  local currentRows = {}
+  for row, buffer in pairs(rowBuffers) do
+    for x = buffer.left, buffer.right do
+      if not buffer.text[x] then
+        buffer.text[x], buffer.foreground[x], buffer.background[x] = " ", colors.toBlit(colors.white), "-"
+      end
+    end
+    local text = table.concat(buffer.text, "", buffer.left, buffer.right)
+    local foreground = table.concat(buffer.foreground, "", buffer.left, buffer.right)
+    local background = table.concat(buffer.background, "", buffer.left, buffer.right)
+    currentRows[row] = { text = text, foreground = foreground, background = background,
+      signature = text .. foreground }
+  end
+  local fullClear = needsFullHudClear
+  local rowsToUpdate = {}
+  for row, oldSignature in pairs(previousHudRows) do
+    if fullClear or not currentRows[row] or currentRows[row].signature ~= oldSignature then
+      rowsToUpdate[row] = true
+    end
+  end
+  for row, buffer in pairs(currentRows) do
+    if fullClear or previousHudRows[row] ~= buffer.signature then rowsToUpdate[row] = true end
+  end
+  if fullClear or next(rowsToUpdate) then
     hud.setBackgroundColour(0)
-    hud.clear()
-    needsFullHudClear = false
-  else
-    local rowsToClear = {}
-    for row in pairs(previousHudRows) do rowsToClear[row] = true end
-    for row in pairs(currentHudRows) do rowsToClear[row] = true end
-    hud.setBackgroundColour(0)
-    for row in pairs(rowsToClear) do hud.setCursorPos(1, row); hud.clearLine() end
+    if fullClear then hud.clear(); needsFullHudClear = false end
+    for row in pairs(rowsToUpdate) do
+      local buffer = currentRows[row]
+      if buffer then
+        if not fullClear then hud.setCursorPos(1, row); hud.clearLine() end
+        hud.setCursorPos(rowBuffers[row].left, row)
+        hud.blit(buffer.text, buffer.foreground, buffer.background)
+      else
+        hud.setCursorPos(1, row)
+        hud.clearLine()
+      end
+    end
   end
-  if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
-  for _, marker in ipairs(markers) do
-    hud.setTextColour(marker.colour)
-    hud.setCursorPos(marker.x, marker.y)
-    hud.write(string.char(7))
-  end
-  for _, label in ipairs(labels) do
-    hud.setTextColour(colors.white)
-    hud.setCursorPos(label.x, label.y)
-    hud.write(label.text)
-  end
-  previousHudRows, previousHudSignature = currentHudRows, signature
+  previousHudRows = {}
+  for row, buffer in pairs(currentRows) do previousHudRows[row] = buffer.signature end
 end
 
 local function drawComputer(message)
   local width = term.getSize()
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
-  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), message or "" }
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(fovActive), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
     signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
@@ -281,7 +318,8 @@ local function drawComputer(message)
   end
   line(#players + 2, "[ Quit ]", colors.red)
   local hudWidth, hudHeight = hud.getSize()
-  line(#players + 3, "Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R", colors.gray)
+  local fovStatus = fovActive and "FOV AUTO" or (fovBridge and "FOV WAIT" or "FOV 110")
+  line(#players + 3, "Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R " .. fovStatus, colors.gray)
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)

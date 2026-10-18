@@ -1,0 +1,47 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    maven { url = 'https://maven.squiddev.cc' }
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neoforge_version}"
+    compileOnly "cc.tweaked:cc-tweaked-1.21.1-forge:1.120.2"
+}
+
+neoForge {
+    version = neoforge_version
+
+    runs {
+        client { client() }
+        server { server() }
+    }
+
+    mods {
+        hudfovbridge { sourceSet sourceSets.main }
+    }
+}
+
+tasks.withType(ProcessResources).configureEach {
+    var properties = [
+        mod_id: mod_id,
+        mod_name: mod_name,
+        mod_version: mod_version,
+        mod_authors: mod_authors,
+        minecraft_version: minecraft_version,
+        neoforge_version: neoforge_version,
+    ]
+    inputs.properties properties
+    filesMatching('META-INF/neoforge.mods.toml') { expand properties }
+}
