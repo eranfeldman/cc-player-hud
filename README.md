@@ -12,9 +12,10 @@ Equip the Advanced Peripherals Player Detector and HUD Glasses pocket upgrades t
 
 ## Controls
 
-- `A`: show all tracked players
-- `P`: cycle through players one at a time
-- `H`: hide/show the HUD
-- `Q`: quit
+- `Up` / `Down`: select Toggle all, a player, or Quit
+- `Enter`: activate the selected row
+- Click/tap a row: activate it directly
 
-The HUD shows only small, contrasting dots projected into your view for up to 10 other online players in the same dimension. Players outside your current view are not drawn; players in another dimension cannot be placed on your screen. The display uses the HUD's character grid and an assumed 70-degree vertical field of view, so dot placement is approximate rather than pixel-perfect. The pocket computer itself shows the controls and current all-player/single-player selection.
+The first row turns every player's dot on or off. Each player row toggles only that player's dot. Select **Quit** to close the program.
+
+The pocket computer lists up to 10 other online players. The HUD shows only small, contrasting dots projected into your view for enabled players in the same dimension. Players outside your current view are not drawn; players in another dimension cannot be placed on your screen. The display uses the HUD's character grid and an assumed 70-degree vertical field of view, so dot placement is approximate rather than pixel-perfect.

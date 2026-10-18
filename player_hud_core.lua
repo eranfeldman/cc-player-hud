@@ -14,8 +14,9 @@ end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
 
-local mode, selected, visible, running = "all", 1, true, true
-local players, onlineCount, wearer = {}, 0, nil
+local selected, running = 1, true
+local players, wearer = {}, nil
+local enabled = {}
 
 local function scan()
   local me = detector.getOwner()
@@ -24,14 +25,18 @@ local function scan()
   end
 
   local found = {}
+  local present = {}
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name)
-    if p and p.x and p.y and p.z and p.uuid ~= me.uuid then
+    local playerName = p and (p.name or name)
+    local isMe = p and ((me.uuid and p.uuid == me.uuid)
+      or (me.name and playerName:lower() == me.name:lower()))
+    if p and p.x and p.y and p.z and not isMe then
       local sameDimension = p.dimension == me.dimension
       local dx, dy, dz = p.x - me.x, p.y - me.y, p.z - me.z
       found[#found + 1] = {
-        name = p.name or name,
+        name = playerName,
         dimension = p.dimension,
         x = p.x,
         y = p.y,
@@ -39,6 +44,8 @@ local function scan()
         eyeHeight = p.eyeHeight or 1.62,
         distance = sameDimension and math.sqrt(dx * dx + dy * dy + dz * dz) or nil,
       }
+      present[playerName] = true
+      if enabled[playerName] == nil then enabled[playerName] = true end
     end
   end
   table.sort(found, function(a, b)
@@ -48,6 +55,9 @@ local function scan()
     return a.name < b.name
   end)
   while #found > MAX_PLAYERS do table.remove(found) end
+  for playerName in pairs(enabled) do
+    if not present[playerName] then enabled[playerName] = nil end
+  end
   return found, #online, me
 end
 
@@ -63,7 +73,7 @@ local function drawHud()
   local aspect = width / height * (2 / 3) -- CC glyphs are about two thirds as wide as they are tall.
   local horizontalTangent = verticalTangent * aspect
   for i, p in ipairs(players) do
-    if p.dimension == wearer.dimension then
+    if enabled[p.name] and p.dimension == wearer.dimension then
       local dx, dy, dz = p.x - wearer.x, p.y + p.eyeHeight * 0.55 - (wearer.y + (wearer.eyeHeight or 1.62)), p.z - wearer.z
       local horizontal = math.sqrt(dx * dx + dz * dz)
       local yaw = (math.deg(math.atan(-dx, dz)) - wearer.yaw + 180) % 360 - 180
@@ -82,45 +92,81 @@ local function drawHud()
   end
 end
 
-local function drawComputer()
+local function drawComputer(message)
+  local width = term.getSize()
   term.setCursorPos(1, 1)
   term.clear()
-  print("Player HUD  |  max " .. MAX_PLAYERS .. " players")
-  print("Mode: " .. (mode == "all" and "ALL" or "ONE"))
-  if mode == "one" then print("Selected: " .. (players[selected] and players[selected].name or "none")) end
-  print("Showing: " .. #players .. "/" .. onlineCount .. " online   HUD: " .. (visible and "ON" or "OFF"))
-  if not wearer then print("Waiting for player data or detector error.") end
-  print("A: all   P: next player   H: HUD on/off   Q: quit")
+  selected = math.max(1, math.min(selected, #players + 2))
+  local allEnabled, anyEnabled = true, false
+  for _, p in ipairs(players) do
+    if enabled[p.name] then anyEnabled = true else allEnabled = false end
+  end
+
+  local function line(row, label, colour)
+    term.setCursorPos(1, row)
+    term.setBackgroundColor(row == selected and colors.yellow or colors.black)
+    term.setTextColor(row == selected and colors.black or colour)
+    term.clearLine()
+    term.write((row == selected and "> " or "  ") .. label:sub(1, math.max(0, width - 2)))
+  end
+
+  local allState = allEnabled and "ON" or (anyEnabled and "MIXED" or "OFF")
+  line(1, "Toggle all: " .. allState, colors.cyan)
+  for i, p in ipairs(players) do
+    line(i + 1, (enabled[p.name] and "[x] " or "[ ] ") .. p.name,
+      enabled[p.name] and colors.lime or colors.gray)
+  end
+  line(#players + 2, "[ Quit ]", colors.red)
+  if message then
+    term.setCursorPos(1, #players + 3)
+    term.setTextColor(colors.red)
+    print(message)
+  end
+  term.setBackgroundColor(colors.black)
+  term.setTextColor(colors.white)
+end
+
+local function activateSelected()
+  if selected == 1 then
+    local turnOn = false
+    for _, p in ipairs(players) do
+      if not enabled[p.name] then turnOn = true; break end
+    end
+    for _, p in ipairs(players) do enabled[p.name] = turnOn end
+  elseif selected <= #players + 1 then
+    local p = players[selected - 1]
+    enabled[p.name] = not enabled[p.name]
+  else
+    running = false
+  end
 end
 
 local function updateLoop()
   while running do
-    local ok, result, count, currentWearer, message = pcall(scan)
+    local ok, result, _, currentWearer, message = pcall(scan)
     if ok then
-      players, onlineCount = result, count or #result
-      wearer = currentWearer
-      if selected > #players then selected = 1 end
+      players, wearer = result, currentWearer
     else
-      players, onlineCount, wearer = {}, 0, nil
+      players, wearer = {}, nil
       message = "Detector error: " .. tostring(result)
     end
-    drawComputer()
-    if message then print(message) end
-    if visible then drawHud() else hud.clear() end
+    drawComputer(message)
+    drawHud()
     sleep(REFRESH)
   end
 end
 
 local function controlLoop()
   while running do
-    local _, char = os.pullEvent("char")
-    char = string.lower(char)
-    if char == "a" then mode = "all"
-    elseif char == "p" then
-      if #players > 0 then selected = selected % #players + 1 end
-      mode = "one"
-    elseif char == "h" then visible = not visible
-    elseif char == "q" then running = false end
+    local event, key, _, y = os.pullEvent()
+    if event == "key" then
+      if key == keys.up then selected = math.max(1, selected - 1)
+      elseif key == keys.down then selected = math.min(#players + 2, selected + 1)
+      elseif key == keys.enter then activateSelected() end
+    elseif event == "mouse_click" and key == 1 and y and y <= #players + 2 then
+      selected = math.max(1, y)
+      activateSelected()
+    end
   end
 end
 
