@@ -22,12 +22,16 @@ if type(hud.setSize) == "function" then
   local size = HUD_SIZES[detailIndex]
   if width ~= size[1] or height ~= size[2] then pcall(hud.setSize, size[1], size[2]) end
 end
+local previousHudRows, needsFullHudClear = {}, true
 local function changeDetail(delta)
   if type(hud.setSize) ~= "function" then return end
   local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
   if nextIndex == detailIndex then return end
   local size = HUD_SIZES[nextIndex]
-  if pcall(hud.setSize, size[1], size[2]) then detailIndex = nextIndex end
+  if pcall(hud.setSize, size[1], size[2]) then
+    detailIndex = nextIndex
+    previousHudRows, needsFullHudClear = {}, true
+  end
 end
 
 local selected, running = 1, true
@@ -94,8 +98,14 @@ end
 local function drawHud()
   local width, height = hud.getSize()
   hud.setBackgroundColour(0)
-  hud.clear()
-  if not wearer or width < 1 or height < 1 then return end
+  if not wearer or width < 1 or height < 1 then
+    if needsFullHudClear then hud.clear(); needsFullHudClear = false
+    else
+      for row in pairs(previousHudRows) do hud.setCursorPos(1, row); hud.clearLine() end
+    end
+    previousHudRows = {}
+    return
+  end
 
   local colorsByPlayer = { colors.lime, colors.red, colors.cyan, colors.yellow, colors.magenta,
     colors.orange, colors.lightBlue, colors.pink, colors.green, colors.purple }
@@ -110,7 +120,7 @@ local function drawHud()
   local contentW = math.min(1, gridAspect / SCREEN_ASPECT)
   local contentH = math.min(1, SCREEN_ASPECT / gridAspect)
   local offsetX, offsetY = (1 - contentW) / 2, (1 - contentH) / 2
-  local markers, occupied = {}, {}
+  local markers, labels, occupied, currentHudRows = {}, {}, {}, {}
 
   for i, p in ipairs(players) do
     if enabled[p.name] and p.positionAvailable and p.sameDimension and p.distance then
@@ -134,17 +144,12 @@ local function drawHud()
           }
           occupied[y] = occupied[y] or {}
           occupied[y][x] = true
+          currentHudRows[y] = true
         end
       end
     end
   end
 
-  if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
-  for _, marker in ipairs(markers) do
-    hud.setTextColour(marker.colour)
-    hud.setCursorPos(marker.x, marker.y)
-    hud.write(string.char(7))
-  end
   for _, marker in ipairs(markers) do
     local function leftFor(text)
       local label = text:sub(1, width)
@@ -160,11 +165,10 @@ local function drawHud()
       return true
     end
     local function place(row, left, label)
-      hud.setTextColour(colors.white)
-      hud.setCursorPos(left, row)
-      hud.write(label)
+      labels[#labels + 1] = { x = left, y = row, text = label }
       occupied[row] = occupied[row] or {}
       for x = left, left + #label - 1 do occupied[row][x] = true end
+      currentHudRows[row] = true
     end
     local placed = false
     for gap = 0, height do
@@ -198,6 +202,28 @@ local function drawHud()
       end
     end
   end
+
+  if needsFullHudClear then
+    hud.clear()
+    needsFullHudClear = false
+  else
+    local rowsToClear = {}
+    for row in pairs(previousHudRows) do rowsToClear[row] = true end
+    for row in pairs(currentHudRows) do rowsToClear[row] = true end
+    for row in pairs(rowsToClear) do hud.setCursorPos(1, row); hud.clearLine() end
+  end
+  if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
+  for _, marker in ipairs(markers) do
+    hud.setTextColour(marker.colour)
+    hud.setCursorPos(marker.x, marker.y)
+    hud.write(string.char(7))
+  end
+  for _, label in ipairs(labels) do
+    hud.setTextColour(colors.white)
+    hud.setCursorPos(label.x, label.y)
+    hud.write(label.text)
+  end
+  previousHudRows = currentHudRows
 end
 
 local function drawComputer(message)
