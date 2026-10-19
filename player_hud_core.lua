@@ -28,7 +28,7 @@ if type(hud.setSize) == "function" then
   if width ~= size[1] or height ~= size[2] then pcall(hud.setSize, size[1], size[2]) end
 end
 local previousHudRows, needsFullHudClear = {}, true
-if hud.setTextShadow then pcall(hud.setTextShadow, "OUTLINE") end
+if hud.setTextShadow then pcall(hud.setTextShadow, "NONE") end
 local function changeDetail(delta)
   if type(hud.setSize) ~= "function" then return end
   local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
