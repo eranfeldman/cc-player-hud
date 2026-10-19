@@ -1,7 +1,7 @@
 -- Downloads and runs the latest player HUD on every launch.
 local api = "https://api.github.com/repos/eranfeldman/cc-player-hud/commits/main?update=" .. tostring(os.epoch("utc"))
 local core = "player_hud_core.lua"
-local fallback = "https://raw.githubusercontent.com/eranfeldman/cc-player-hud/80d37edd8ad779371276799ae9ab4f4f7af3b9e7/player_hud_core.lua"
+local fallback = "https://raw.githubusercontent.com/eranfeldman/cc-player-hud/main/player_hud_core.lua"
 
 local url, response, err
 if http and http.get then
