@@ -1,6 +1,7 @@
 -- Pocket Unlimited + Advanced Peripherals Player Detector + HUD Glasses CC
 local MAX_PLAYERS = 10
-local REFRESH = 0.1
+local UPDATE_RATES = { 5, 10, 15, 20 }
+local updateRateIndex = #UPDATE_RATES
 local HUD_SIZES = { { 80, 28 }, { 128, 48 }, { 192, 72 }, { 256, 96 }, { 256, 128 } }
 local VERTICAL_FOV = 110
 local SCREEN_ASPECT = 16 / 9
@@ -38,6 +39,10 @@ local function changeDetail(delta)
     detailIndex = nextIndex
     previousHudRows, needsFullHudClear = {}, true
   end
+end
+
+local function changeUpdateRate(delta)
+  updateRateIndex = math.max(1, math.min(#UPDATE_RATES, updateRateIndex + delta))
 end
 
 local selected, running = 1, true
@@ -299,7 +304,7 @@ local function drawComputer(message)
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
   local fovDisplay = fovActive and math.floor((wearer.fov or VERTICAL_FOV) + 0.5) or nil
-  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(UPDATE_RATES[updateRateIndex]), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
     signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
@@ -336,7 +341,7 @@ local function drawComputer(message)
   line(#players + 2, "[ Quit ]", colors.red)
   local hudWidth, hudHeight = hud.getSize()
   local fovStatus = fovActive and ("FOV " .. fovDisplay) or (fovBridge and "FOV WAIT" or "FOV 110")
-  line(#players + 3, fovStatus .. "  Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R", colors.gray)
+  line(#players + 3, fovStatus .. "  Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R " .. UPDATE_RATES[updateRateIndex] .. " TPS W/S", colors.gray)
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
@@ -372,7 +377,7 @@ local function updateLoop()
     end
     drawComputer(message)
     drawHud()
-    sleep(REFRESH)
+    sleep(1 / UPDATE_RATES[updateRateIndex])
   end
 end
 
@@ -380,7 +385,10 @@ local function controlLoop()
   while running do
     local event, key, _, y = os.pullEvent()
     if event == "key" then
-      if key == keys.up then selected = math.max(1, selected - 1)
+      if key == keys.q then running = false
+      elseif key == keys.w then changeUpdateRate(1)
+      elseif key == keys.s then changeUpdateRate(-1)
+      elseif key == keys.up then selected = math.max(1, selected - 1)
       elseif key == keys.down then selected = math.min(#players + 2, selected + 1)
       elseif key == keys.left then changeDetail(-1)
       elseif key == keys.right then changeDetail(1)
