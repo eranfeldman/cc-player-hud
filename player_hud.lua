@@ -51,6 +51,4 @@ else
 end
 
 if not fs.exists(core) then error("No cached HUD program. Check HTTP access and launch again.") end
-local program, loadError = loadfile(core)
-if not program then error(loadError) end
-program(...)
+if not os.run(_ENV, core, ...) then error("Player HUD core failed.") end
