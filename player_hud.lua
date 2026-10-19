@@ -22,7 +22,7 @@ if http and http.get then
   else
     err = ok and reason or result
   end
-  if not url then url = fallback end
+  if not response then url = fallback end
   if not response then
     local downloaded, file, downloadError = pcall(http.get, url)
     if downloaded then response, err = file, downloadError else err = file end
