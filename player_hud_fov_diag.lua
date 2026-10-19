@@ -20,24 +20,39 @@ if not fovApi then
   return
 end
 
-local minFov, maxFov, lastFov
-while true do
+local function readFov()
   local ok, fov = pcall(fovApi.getFov)
-  if ok and type(fov) == "number" then
+  return ok and type(fov) == "number" and fov or nil
+end
+
+local before = readFov()
+print("HUD FOV diagnostic")
+print("Source: " .. source)
+print("Start with ADS off.")
+print("Close this screen, ADS for 10 sec.")
+print("Capture starts in 3 seconds...")
+sleep(3)
+
+local minFov, maxFov, lastFov, samples
+for _ = 1, 100 do
+  local fov = readFov()
+  if fov then
     minFov = math.min(minFov or fov, fov)
     maxFov = math.max(maxFov or fov, fov)
     lastFov = fov
-  else
-    lastFov = nil
+    samples = (samples or 0) + 1
   end
+  sleep(0.1)
+end
 
-  term.setCursorPos(1, 1)
-  term.clear()
-  print("HUD FOV diagnostic")
-  print("Source: " .. source)
-  print("Current: " .. (lastFov and string.format("%.1f deg", lastFov) or "WAITING FOR SERVER"))
-  print("Range: " .. (minFov and string.format("%.1f - %.1f", minFov, maxFov) or "no sample yet"))
-  print("Aim down sights to check FOV.")
-  print("Ctrl+T to stop.")
-  sleep(0.25)
+term.setCursorPos(1, 1)
+term.clear()
+print("HUD FOV diagnostic result")
+print("Source: " .. source)
+print("Before: " .. (before and string.format("%.1f deg", before) or "no sample"))
+print("Range: " .. (minFov and string.format("%.1f - %.1f deg", minFov, maxFov) or "no samples"))
+print("End: " .. (lastFov and string.format("%.1f deg", lastFov) or "no sample"))
+print("Samples: " .. (samples or 0) .. "/100")
+if minFov and maxFov then
+  print("Change: " .. (maxFov - minFov >= 1 and "detected" or "not detected"))
 end
