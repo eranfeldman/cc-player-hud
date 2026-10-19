@@ -51,4 +51,6 @@ else
 end
 
 if not fs.exists(core) then error("No cached HUD program. Check HTTP access and launch again.") end
-shell.run(core, ...)
+local program, loadError = loadfile(core)
+if not program then error(loadError) end
+program(...)
