@@ -420,6 +420,7 @@ local function controlLoop()
       elseif key == keys.down then selected = math.min(#players + 2, selected + 1)
       elseif key == keys.left then changeDetail(-1, true)
       elseif key == keys.right then changeDetail(1, true)
+      elseif key == keys.a then manualDetail = not manualDetail
       elseif key == keys.t then
         if testTarget then
           testTarget = nil
