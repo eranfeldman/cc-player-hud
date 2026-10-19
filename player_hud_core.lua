@@ -29,7 +29,7 @@ if type(hud.setSize) == "function" then
   if width ~= size[1] or height ~= size[2] then pcall(hud.setSize, size[1], size[2]) end
 end
 local previousHudRows, needsFullHudClear = {}, true
-if hud.setTextShadow then pcall(hud.setTextShadow, "NONE") end
+if hud.setTextShadow then pcall(hud.setTextShadow, "SHADOW") end
 local function changeDetail(delta)
   if type(hud.setSize) ~= "function" then return end
   local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
@@ -51,6 +51,7 @@ local enabled = {}
 local testTarget
 local previousComputerSignature
 local fovActive = false
+local currentHz
 
 local function scan()
   local me = detector.getOwner(true)
@@ -304,7 +305,7 @@ local function drawComputer(message)
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
   local fovDisplay = fovActive and math.floor((wearer.fov or VERTICAL_FOV) + 0.5) or nil
-  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(UPDATE_RATES[updateRateIndex]), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(UPDATE_RATES[updateRateIndex]), tostring(currentHz), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
     signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
@@ -341,7 +342,8 @@ local function drawComputer(message)
   line(#players + 2, "[ Quit ]", colors.red)
   local hudWidth, hudHeight = hud.getSize()
   local fovStatus = fovActive and ("FOV " .. fovDisplay) or (fovBridge and "FOV WAIT" or "FOV 110")
-  line(#players + 3, fovStatus .. "  Detail " .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " L/R " .. UPDATE_RATES[updateRateIndex] .. " TPS W/S", colors.gray)
+  local measuredRate = currentHz and string.format("%.1fHz", currentHz) or "--Hz"
+  line(#players + 3, fovStatus .. " D" .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " " .. UPDATE_RATES[updateRateIndex] .. "TPS " .. measuredRate .. " W/S", colors.gray)
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
@@ -367,6 +369,7 @@ local function activateSelected()
 end
 
 local function updateLoop()
+  local windowStart, updates = os.epoch("utc"), 0
   while running do
     local ok, result, _, currentWearer, message = pcall(scan)
     if ok then
@@ -377,6 +380,12 @@ local function updateLoop()
     end
     drawComputer(message)
     drawHud()
+    updates = updates + 1
+    local now = os.epoch("utc")
+    if now - windowStart >= 1000 then
+      currentHz = updates * 1000 / (now - windowStart)
+      updates, windowStart = 0, now
+    end
     sleep(1 / UPDATE_RATES[updateRateIndex])
   end
 end
