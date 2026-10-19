@@ -23,6 +23,7 @@ end
 assert(detector, "Player Detector pocket upgrade not found")
 assert(hud, "HUD Glasses pocket upgrade not found")
 local detailIndex = 2
+local manualDetail = false
 if type(hud.setSize) == "function" then
   local width, height = hud.getSize()
   local size = HUD_SIZES[detailIndex]
@@ -30,15 +31,28 @@ if type(hud.setSize) == "function" then
 end
 local previousHudRows, needsFullHudClear = {}, true
 if hud.setTextShadow then pcall(hud.setTextShadow, "SHADOW") end
-local function changeDetail(delta)
+local function changeDetail(delta, manual)
   if type(hud.setSize) ~= "function" then return end
   local nextIndex = math.max(1, math.min(#HUD_SIZES, detailIndex + delta))
   if nextIndex == detailIndex then return end
   local size = HUD_SIZES[nextIndex]
   if pcall(hud.setSize, size[1], size[2]) then
     detailIndex = nextIndex
+    manualDetail = manualDetail or manual == true
     previousHudRows, needsFullHudClear = {}, true
   end
+end
+
+local function autoDetail(fov)
+  if manualDetail then return end
+  local target = 2
+  if type(fov) == "number" and fov > 0 and fov < 180 then
+    local zoom = math.tan(math.rad(VERTICAL_FOV / 2)) / math.tan(math.rad(fov / 2))
+    if zoom > 1.05 then target = 3 end
+    if zoom > 5 then target = 4 end
+    if zoom > 20 then target = 5 end
+  end
+  changeDetail(target - detailIndex)
 end
 
 local function changeUpdateRate(delta)
@@ -55,7 +69,11 @@ local currentHz
 
 local function scan()
   local me = detector.getOwner(true)
-  if not me then return {}, 0, nil, "Waiting for player data..." end
+  if not me then
+    fovActive = false
+    autoDetail(nil)
+    return {}, 0, nil, "Waiting for player data..."
+  end
   local ownerHasPosition = me.x ~= nil and me.y ~= nil and me.z ~= nil
   local ownerCanProject = ownerHasPosition and me.yaw ~= nil and me.pitch ~= nil
 
@@ -68,6 +86,7 @@ local function scan()
   else
     fovActive = false
   end
+  autoDetail(fovActive and me.fov or nil)
   local online = detector.getOnlinePlayers() or {}
   for _, name in ipairs(online) do
     local p = detector.getPlayer(name, true)
@@ -305,7 +324,7 @@ local function drawComputer(message)
   selected = math.max(1, math.min(selected, #players + 2))
   local allEnabled, anyEnabled = true, false
   local fovDisplay = fovActive and math.floor((wearer.fov or VERTICAL_FOV) + 0.5) or nil
-  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(UPDATE_RATES[updateRateIndex]), tostring(currentHz), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
+  local signatureParts = { tostring(width), tostring(selected), tostring(detailIndex), tostring(manualDetail), tostring(UPDATE_RATES[updateRateIndex]), tostring(currentHz), tostring(fovDisplay), tostring(testTarget ~= nil), message or "" }
   for _, p in ipairs(players) do
     if enabled[p.name] then anyEnabled = true else allEnabled = false end
     signatureParts[#signatureParts + 1] = p.name .. ":" .. tostring(enabled[p.name]) .. ":" .. tostring(p.positionAvailable)
@@ -343,7 +362,7 @@ local function drawComputer(message)
   local hudWidth, hudHeight = hud.getSize()
   local fovStatus = fovActive and ("FOV " .. fovDisplay) or (fovBridge and "FOV WAIT" or "FOV 110")
   local measuredRate = currentHz and string.format("%.1fHz", currentHz) or "--Hz"
-  line(#players + 3, fovStatus .. " D" .. detailIndex .. "/" .. #HUD_SIZES .. " " .. hudWidth .. "x" .. hudHeight .. " " .. UPDATE_RATES[updateRateIndex] .. "TPS " .. measuredRate .. " W/S", colors.gray)
+  line(#players + 3, fovStatus .. " D" .. detailIndex .. "/" .. #HUD_SIZES .. (manualDetail and " MAN" or " AUTO") .. " " .. hudWidth .. "x" .. hudHeight .. " " .. UPDATE_RATES[updateRateIndex] .. "TPS " .. measuredRate .. " W/S", colors.gray)
   if message then
     term.setCursorPos(1, #players + 4)
     term.setTextColor(colors.red)
@@ -399,8 +418,8 @@ local function controlLoop()
       elseif key == keys.s then changeUpdateRate(-1)
       elseif key == keys.up then selected = math.max(1, selected - 1)
       elseif key == keys.down then selected = math.min(#players + 2, selected + 1)
-      elseif key == keys.left then changeDetail(-1)
-      elseif key == keys.right then changeDetail(1)
+      elseif key == keys.left then changeDetail(-1, true)
+      elseif key == keys.right then changeDetail(1, true)
       elseif key == keys.t then
         if testTarget then
           testTarget = nil
