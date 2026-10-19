@@ -2,7 +2,7 @@
 local MAX_PLAYERS = 10
 local UPDATE_RATES = { 5, 10, 15, 20 }
 local updateRateIndex = #UPDATE_RATES
-local HUD_SIZES = { { 80, 28 }, { 128, 48 }, { 192, 72 }, { 256, 96 }, { 256, 128 } }
+local HUD_SIZES = { { 79, 29 }, { 127, 47 }, { 191, 71 }, { 223, 83 }, { 253, 95 } }
 local VERTICAL_FOV = 110
 local SCREEN_ASPECT = 16 / 9
 -- shortcut: assumes 16:9 HUD FIT and 110° FOV; adjust if view settings or dynamic FOV effects differ.
